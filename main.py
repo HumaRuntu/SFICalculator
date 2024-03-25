@@ -1,12 +1,27 @@
 import cv2
 import PySimpleGUI as sg
-from tkinter import Tk
-from tkinter.filedialog import askopenfilename
+import os
 
 def openFile():
-    Tk().withdraw()
-    filename = askopenfilename()  # show an "Open" dialog box and return the path to the selected file
+    layout = [
+    [sg.Input(), sg.FileBrowse('FileBrowse')],
+    [sg.Submit(), sg.Cancel()],
+    ]
+
+    window = sg.Window('File Select', layout)
+
+    while True:
+        event, value = window.read()     
+        if event is None or event == 'Cancel':
+            exit()
+        
+        if event == 'Submit': 
+            filename = value[0] #save the one selected file
+            break
+    
+    window.close()
     return filename
+
 
 def calculate_sfi(etof, ntof, npl, epl, ets, nts, eit, nit):
     """
@@ -29,21 +44,30 @@ def showVideo():
     chosenVideoPath = openFile()  # select video to show
     video = cv2.VideoCapture(chosenVideoPath)
 
-    layout = [[sg.Graph((video.get(cv2.CAP_PROP_FRAME_WIDTH), video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (0, video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (video.get(cv2.CAP_PROP_FRAME_WIDTH), 0), key='-GRAPH-', enable_events=True, drag_submits=True)], ]
+    layout = [[sg.Button("Open new video")], 
+              [sg.Graph((video.get(cv2.CAP_PROP_FRAME_WIDTH), video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (0, video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (video.get(cv2.CAP_PROP_FRAME_WIDTH), 0), key='-GRAPH-', enable_events=True, drag_submits=True)],
+              [sg.Button('Pause'), sg.Button('Play')] ]
     window = sg.Window('SFI Calculator', layout)
     graph_elem = window['-GRAPH-']  # type: sg.Graph
     a_id = None
-    #key = cv2.waitKey(0)
+
     # show video
     while True:
         event, values = window.read(timeout=0)
         if event in ('Exit', None):
             break
+        
+        elif event == 'Pause':
+            cv2.waitKey(-1)
+            break
+
+        elif event == 'Play':
+            video = cv2.VideoCapture(chosenVideoPath)
+            break
+        
 
         ret, frame = video.read()
 
-        #if key == ord('p'):
-         #   cv2.waitKey(-1)
         imgbytes = cv2.imencode('.ppm', frame)[1].tobytes()
         if a_id:
             graph_elem.delete_figure(a_id)  # delete previous image

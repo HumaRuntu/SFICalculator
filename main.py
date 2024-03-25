@@ -44,9 +44,9 @@ def showVideo():
     chosenVideoPath = openFile()  # select video to show
     video = cv2.VideoCapture(chosenVideoPath)
 
-    layout = [[sg.Button("Open new video")], 
+    layout = [[sg.Button('Open video')],
               [sg.Graph((video.get(cv2.CAP_PROP_FRAME_WIDTH), video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (0, video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (video.get(cv2.CAP_PROP_FRAME_WIDTH), 0), key='-GRAPH-', enable_events=True, drag_submits=True)],
-              [sg.Button('Pause'), sg.Button('Play')] ]
+              [sg.Button('Pause'), sg.Button('Restart')] ]
     window = sg.Window('SFI Calculator', layout)
     graph_elem = window['-GRAPH-']  # type: sg.Graph
     a_id = None
@@ -59,12 +59,16 @@ def showVideo():
         
         elif event == 'Pause':
             cv2.waitKey(-1)
-            break
 
-        elif event == 'Play':
+        elif event == 'Restart':
             video = cv2.VideoCapture(chosenVideoPath)
-            break
         
+        elif event == 'Open video':
+            window.close()
+            video.release()
+            cv2.destroyAllWindows()
+            showVideo()
+            break
 
         ret, frame = video.read()
 

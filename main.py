@@ -39,19 +39,24 @@ def calculate_sfi(etof, ntof, npl, epl, ets, nts, eit, nit):
     return sfi
 
 def showVideo():
+    playImage = b'iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAABmJLR0QA/wD/AP+gvaeTAAAByElEQVRoge3ZMWsUQRjG8Z8RFSKCgoJp0qSJjVpoZ2clkk8g5CtYpU+TD5DSUkvbVCFNYiM2dhZqY6GFQooEISGai8Xu4HgmcnM3c+su+4fj2L2dmedhb+Z95x16enp6hljBxaZF5OAE7/GoaSGTchJ9tnCrWTnjE0zs19+HWMPlJkWNQzAyh2c4rq+/YBnnmpOWRjASuIfX0f0d3GlAVzLDRmBG9Ta+1r8d4wVuTFdaGqcZCVzFOn7Uz+ziKc5PR1oa/zISWMRm9OxbPCisK5lRjASW8Clqs4H5MrLSSTECs1jFQd3ue319KbewVFKNBBbwMmr/EY8z6kpmXCOBh3gX9dNYdjCpEbigWs326r6OVKvdlQn7TSKHkcCcKt4MNJAd5DQSuI83Ud87uJ15jL8oYYTf2cE3f2YH1wuMhXJGAtdU8+WnwtlBaSOBu3gVjZc9O5iWEapJ/wSf6zEHeI6bZzWYmY6u/4v+rzUirZ/snVh+hwPitpYFxNanKJ1IGk9L4xcz6Eom18bqg5ZtrDqx1Y2LDwPVG2lV8aH15aDWF+jOKpkWi8o5GKWIXTwq56BzxwqdOejpxNFbJw5DO3M83dPT02J+AbN50HbYDxzCAAAAAElFTkSuQmCC'
+    stopImage = b'iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAYAAAAeP4ixAAAABmJLR0QA/wD/AP+gvaeTAAAAaklEQVRoge3ZQQqAMAxFwSre/8p6AZFUiXzKzLqLPNJVOwYAvLcVzpztU9Q8zrr/NUW3Y+JsZXsdSjdimY0ISSMkjZA0QtIISSMkjZA0QtIISSMkjZA0QtIISSMkzcxrfMo/ya1lNgIAX1zq+ANHUjXZuAAAAABJRU5ErkJggg=='
 
-    #  choose and read video
+    # choose and read video
     chosenVideoPath = openFile()  # select video to show
     video = cv2.VideoCapture(chosenVideoPath)
 
+    #Create window
+    sg.theme('DarkTeal6')
     layout = [[sg.Button('Open video')],
               [sg.Graph((video.get(cv2.CAP_PROP_FRAME_WIDTH), video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (0, video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (video.get(cv2.CAP_PROP_FRAME_WIDTH), 0), key='-GRAPH-', enable_events=True, drag_submits=True)],
-              [sg.Button('Pause'), sg.Button('Restart')] ]
+              [sg.Button(image_data=playImage, key= '-Play/Pause-'),  sg.Button('Restart')] ]
     window = sg.Window('SFI Calculator', layout)
     graph_elem = window['-GRAPH-']  # type: sg.Graph
     a_id = None
 
-    paused = False
+    paused = True
+    ret, frame = video.read() #get frst frame of video
 
     # show video
     while True:
@@ -65,18 +70,24 @@ def showVideo():
         elif event == 'Restart':
             video = cv2.VideoCapture(chosenVideoPath)
         
+        #Open new video
         elif event == 'Open video':
             window.close()
             video.release()
             cv2.destroyAllWindows()
             showVideo()
             break  
-        elif event == 'Pause':
+
+        #Play/pause button interaction 
+        elif event == '-Play/Pause-':
             if paused != True:
                 paused = True
+                window['-Play/Pause-'].update(image_data=playImage)
             else:
                 paused = False
+                window['-Play/Pause-'].update(image_data=stopImage)
 
+        #Drawing on image TODO
         imgbytes = cv2.imencode('.ppm', frame)[1].tobytes()
         if a_id:
             graph_elem.delete_figure(a_id)  # delete previous image

@@ -1,10 +1,9 @@
 import cv2
 import PySimpleGUI as sg
-import os
 
 def openFile():
     layout = [
-    [sg.Input(), sg.FileBrowse('FileBrowse')],
+    [sg.Input(), sg.FileBrowse('Browse')],
     [sg.Submit(), sg.Cancel()],
     ]
 
@@ -24,6 +23,7 @@ def openFile():
 
 
 def calculate_sfi(etof, ntof, npl, epl, ets, nts, eit, nit):
+    #TODO
     """
     Calculates the Sciatic Function Index (SFI) based on input parameters.
     :param etof: Experimental TOF (orthogonal distance)
@@ -51,15 +51,17 @@ def showVideo():
     graph_elem = window['-GRAPH-']  # type: sg.Graph
     a_id = None
 
+    paused = False
+
     # show video
     while True:
         event, values = window.read(timeout=0)
+        if not paused:
+            ret, frame = video.read()
+
         if event in ('Exit', None):
             break
-        
-        elif event == 'Pause':
-            cv2.waitKey(-1)
-
+    
         elif event == 'Restart':
             video = cv2.VideoCapture(chosenVideoPath)
         
@@ -68,9 +70,12 @@ def showVideo():
             video.release()
             cv2.destroyAllWindows()
             showVideo()
-            break
-
-        ret, frame = video.read()
+            break  
+        elif event == 'Pause':
+            if paused != True:
+                paused = True
+            else:
+                paused = False
 
         imgbytes = cv2.imencode('.ppm', frame)[1].tobytes()
         if a_id:

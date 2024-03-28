@@ -45,31 +45,57 @@ def showVideo():
     # choose and read video
     chosenVideoPath = openFile()  # select video to show
     video = cv2.VideoCapture(chosenVideoPath)
+    if not video.isOpened():
+        window.close()
+        video.release()
+        cv2.destroyAllWindows()
+        showVideo()
+        raise ValueError(f"Failed to open media: {chosenVideoPath}")
+    totalFrames = video.get(cv2.CAP_PROP_FRAME_COUNT)
+    fps = video.get(cv2.CAP_PROP_FPS)
+    fastFowardSpeed = 1000 #Speed for fastforward or rewind
 
     #Create window
     sg.theme('DarkTeal6')
     layout = [[sg.Button('Open video')],
               [sg.Graph((video.get(cv2.CAP_PROP_FRAME_WIDTH), video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (0, video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (video.get(cv2.CAP_PROP_FRAME_WIDTH), 0), key='-GRAPH-', enable_events=True, drag_submits=True)],
-              [sg.Button(image_data=playImage, key= '-Play/Pause-'),  sg.Button('Restart')] ]
+              [sg.Text('00:00', key='-TIME_ELAPSED-')], 
+               [sg.Slider(range=(0, totalFrames - 1), enable_events=True, resolution=0.0001, disable_number_display=True,
+                       background_color='#83D8F5', orientation='h', key='-TIME-')],
+              [sg.Button('Rewind'), sg.Button(image_data=playImage, key= '-Play/Pause-'),sg.Button('Fast Forward'),  sg.Button('Restart')] ]
     window = sg.Window('SFI Calculator', layout)
     graph_elem = window['-GRAPH-']  # type: sg.Graph
     a_id = None
 
     paused = True
     ret, frame = video.read() #get frst frame of video
+    currentFrame = 1
 
     # show video
     while True:
         event, values = window.read(timeout=0)
         if not paused:
             ret, frame = video.read()
+            currentFrame += 1
+            time_elapsed = "{:02.0f}:{:02.0f}".format(*divmod(video.get(cv2.CAP_PROP_POS_MSEC) // 1000, 60))
+            window['-TIME_ELAPSED-'].update(time_elapsed)
 
         if event in ('Exit', None):
             break
     
+        elif event == '-TIME-':
+            video.set(cv2.CAP_PROP_POS_FRAMES, int(values['-TIME-'] - 1))
+            currentFrame = int(values['-TIME-'] - 1)
+            paused = False
+                       
         elif event == 'Restart':
             video = cv2.VideoCapture(chosenVideoPath)
         
+        elif event == 'Rewind': #TODO
+            #paused = True #Prevents video from going backwards and forwards at the same time
+            totalFrames -=(fps * fastFowardSpeed)
+            video.set(cv2.CAP_PROP_POS_FRAMES, totalFrames)
+
         #Open new video
         elif event == 'Open video':
             window.close()
@@ -87,13 +113,16 @@ def showVideo():
                 paused = False
                 window['-Play/Pause-'].update(image_data=stopImage)
 
-        #Drawing on image TODO
+        #Drawing frame on graph FIXME Crashes when video is done
+        if currentFrame is totalFrames - 1:
+            video.set(cv2.CAP_PROP_POS_FRAMES, totalFrames - 1)
         imgbytes = cv2.imencode('.ppm', frame)[1].tobytes()
         if a_id:
             graph_elem.delete_figure(a_id)  # delete previous image
         a_id = graph_elem.draw_image(data=imgbytes, location=(0, 0))  # draw new image
         graph_elem.send_figure_to_back(a_id)  # move image to the "bottom" of all other drawings
 
+        #draw on graph TODO
         if event == '-GRAPH-':
             graph_elem.draw_circle(values['-GRAPH-'], 5, fill_color='red', line_color='red')
 

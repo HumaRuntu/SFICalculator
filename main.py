@@ -62,9 +62,8 @@ def showVideo():
     sg.theme('DarkTeal6')
     layout = [[sg.Button('Open video')],
               [sg.Graph((video.get(cv2.CAP_PROP_FRAME_WIDTH), video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (0, video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (video.get(cv2.CAP_PROP_FRAME_WIDTH), 0), key='-GRAPH-', enable_events=True, drag_submits=True)],
-              [sg.Text('00:00', key='-TIME_ELAPSED-')], 
-               [sg.Slider(range=(0, totalFrames - 1), enable_events=True, resolution=0.0001, disable_number_display=True,
-                       background_color='#83D8F5', orientation='h', key='-TIME-', size=(100, 20))],
+              [sg.Text('00:00', key='-TIME_ELAPSED-'), sg.Slider(range=(0, totalFrames - 1), enable_events=True, resolution=0.0001, disable_number_display=True,
+                       background_color='#83D8F5', orientation='h', key='-TIME-', size=(video.get(cv2.CAP_PROP_FRAME_WIDTH) * 0.073, 20))],
               [sg.Button(key='-REWIND-', image_data=rewindImage), sg.Button(image_data=playImage, key= '-PLAY-'), sg.Button(image_data=pauseImage, key='-PAUSE-'),sg.Button(key='-FASTFORWARD-', image_data=forwardImage),  sg.Button('Restart')] ]
     window = sg.Window('SFI Calculator', layout)
     graph_elem = window['-GRAPH-']  # type: sg.Graph

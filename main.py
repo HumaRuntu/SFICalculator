@@ -1,6 +1,7 @@
 import cv2
 import PySimpleGUI as sg
-from os import listdir
+
+WINDOW = sg.Window("init")
 
 def openFile():
     layout = [
@@ -8,10 +9,10 @@ def openFile():
     [sg.Submit(), sg.Cancel()],
     ]
 
-    window = sg.Window('File Select', layout)
+    WINDOW = sg.Window('File Select', layout)
 
     while True:
-        event, value = window.read()     
+        event, value = WINDOW.read()     
         if event is None or event == 'Cancel':
             exit()
         
@@ -19,9 +20,14 @@ def openFile():
             filename = value[0] #save the one selected file
             break
     
-    window.close()
+    WINDOW.close()
     return filename
 
+def measureLine(aspectBeingMeasured):
+    """
+    Calculates distance between user drawn points
+    """
+    
 
 def calculate_sfi(etof, ntof, npl, epl, ets, nts, eit, nit):
     #TODO
@@ -49,24 +55,24 @@ def showVideo():
     chosenVideoPath = openFile()  # select video to show
     video = cv2.VideoCapture(chosenVideoPath)
     if not video.isOpened():
-        window.close()
+        WINDOW.close()
         video.release()
         cv2.destroyAllWindows()
         showVideo()
         raise ValueError(f"Failed to open media: {chosenVideoPath}")
     totalFrames = video.get(cv2.CAP_PROP_FRAME_COUNT)
     fps = video.get(cv2.CAP_PROP_FPS)
-    fastFowardSpeed = 1000 #Speed for fastforward or rewind
 
-    #Create window
+    #Create WINDOW
     sg.theme('DarkTeal6')
     layout = [[sg.Button('Open video')],
               [sg.Graph((video.get(cv2.CAP_PROP_FRAME_WIDTH), video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (0, video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (video.get(cv2.CAP_PROP_FRAME_WIDTH), 0), key='-GRAPH-', enable_events=True, drag_submits=True)],
               [sg.Text('00:00', key='-TIME_ELAPSED-'), sg.Slider(range=(0, totalFrames - 1), enable_events=True, resolution=0.0001, disable_number_display=True,
                        background_color='#83D8F5', orientation='h', key='-TIME-', size=(video.get(cv2.CAP_PROP_FRAME_WIDTH) * 0.073, 20))],
-              [sg.Button(key='-REWIND-', image_data=rewindImage), sg.Button(image_data=playImage, key= '-PLAY-'), sg.Button(image_data=pauseImage, key='-PAUSE-'),sg.Button(key='-FASTFORWARD-', image_data=forwardImage),  sg.Button('Restart')] ]
-    window = sg.Window('SFI Calculator', layout)
-    graph_elem = window['-GRAPH-']  # type: sg.Graph
+              [sg.Button(key='-REWIND-', image_data=rewindImage), sg.Button(image_data=playImage, key= '-PLAY-'), sg.Button(image_data=pauseImage, key='-PAUSE-'),sg.Button(key='-FASTFORWARD-', image_data=forwardImage),  sg.Button('Restart')],
+               [sg.Button('Measure Mode', key='-MEASURE-') ]]
+    WINDOW = sg.Window('SFI Calculator', layout)
+    graph_elem = WINDOW['-GRAPH-']  # type: sg.Graph
     a_id = None
 
     paused = True
@@ -77,12 +83,12 @@ def showVideo():
 
     # show video
     while True:
-        event, values = window.read(timeout=0)
+        event, values = WINDOW.read(timeout=0)
         if not paused and not rewind and not fastForward:
             ret, frame = video.read()
             currentFrame += 1
             time_elapsed = "{:02.0f}:{:02.0f}".format(*divmod(video.get(cv2.CAP_PROP_POS_MSEC) // 1000, 60))
-            window['-TIME_ELAPSED-'].update(time_elapsed)
+            WINDOW['-TIME_ELAPSED-'].update(time_elapsed)
         elif rewind:
             ret, frame = video.read()
             currentFrame -=(fps)
@@ -90,8 +96,8 @@ def showVideo():
                 currentFrame = 0
             video.set(cv2.CAP_PROP_POS_FRAMES, int(currentFrame))
             time_elapsed = "{:02.0f}:{:02.0f}".format(*divmod(video.get(cv2.CAP_PROP_POS_MSEC) // 1000, 60))
-            window['-TIME_ELAPSED-'].update(time_elapsed)
-            window['-TIME-'].update(currentFrame)
+            WINDOW['-TIME_ELAPSED-'].update(time_elapsed)
+            WINDOW['-TIME-'].update(currentFrame)
         elif fastForward:
             ret, frame = video.read()
             currentFrame +=(fps)
@@ -99,8 +105,8 @@ def showVideo():
                 currentFrame = totalFrames
             video.set(cv2.CAP_PROP_POS_FRAMES, int(currentFrame))
             time_elapsed = "{:02.0f}:{:02.0f}".format(*divmod(video.get(cv2.CAP_PROP_POS_MSEC) // 1000, 60))
-            window['-TIME_ELAPSED-'].update(time_elapsed)
-            window['-TIME-'].update(currentFrame)
+            WINDOW['-TIME_ELAPSED-'].update(time_elapsed)
+            WINDOW['-TIME-'].update(currentFrame)
 
         if event in ('Exit', None):
             break
@@ -117,7 +123,7 @@ def showVideo():
             values['-TIME-'] = 0
             currentFrame = 0
             video.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            window['-TIME-'].update(0)
+            WINDOW['-TIME-'].update(0)
         
         elif event == '-REWIND-':
             rewind = True
@@ -131,7 +137,7 @@ def showVideo():
 
         #Open new video
         elif event == 'Open video':
-            window.close()
+            WINDOW.close()
             video.release()
             cv2.destroyAllWindows()
             showVideo()
@@ -148,6 +154,9 @@ def showVideo():
             rewind = False
             fastForward = False
 
+        elif event == '-MEASURE-':
+            measureLine(aspectBeingMeasured='nts')
+
         #Drawing frame on graph
         if currentFrame >= totalFrames:
             #Video end was reached so stay on last frame
@@ -162,7 +171,7 @@ def showVideo():
         if event == '-GRAPH-':
             graph_elem.draw_circle(values['-GRAPH-'], 5, fill_color='red', line_color='red')
 
-    window.close()
+    WINDOW.close()
 
     video.release()
     cv2.destroyAllWindows()

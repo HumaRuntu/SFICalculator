@@ -71,7 +71,7 @@ def showVideo():
                        background_color='#83D8F5', orientation='h', key='-TIME-', size=(video.get(cv2.CAP_PROP_FRAME_WIDTH) * 0.073, 20))],
               [sg.Button(key='-REWIND-', image_data=rewindImage), sg.Button(image_data=playImage, key= '-PLAY-'), sg.Button(image_data=pauseImage, key='-PAUSE-'),sg.Button(key='-FASTFORWARD-', image_data=forwardImage),  sg.Button('Restart')],
                [sg.Button('Measure Mode', key='-MEASURE-') ]]
-    WINDOW = sg.Window('SFI Calculator', layout)
+    WINDOW = sg.Window('SFI Calculator', layout, resizable=True, element_justification='c', return_keyboard_events=True)
     graph_elem = WINDOW['-GRAPH-']  # type: sg.Graph
     a_id = None
 
@@ -84,6 +84,7 @@ def showVideo():
     # show video
     while True:
         event, values = WINDOW.read(timeout=0)
+
         if not paused and not rewind and not fastForward:
             ret, frame = video.read()
             currentFrame += 1
@@ -144,18 +145,42 @@ def showVideo():
             break  
 
         #Play/pause button interaction 
-        elif event == '-PLAY-':
+        elif event == '-PLAY-' or (event == ' ' and paused):#space key
             paused = False
             rewind = False 
             fastForward = False
 
-        elif event == '-PAUSE-':
+        elif event == '-PAUSE-' or (event == ' ' and not paused): 
             paused = True
             rewind = False
             fastForward = False
 
         elif event == '-MEASURE-':
             measureLine(aspectBeingMeasured='nts')
+
+        #move 1 frame either forwards or backwards using the arrow keys
+        if (event == 'Left:37'):
+            paused = True
+            ret, frame = video.read()
+            currentFrame -=1
+            if currentFrame < 0:
+                currentFrame = 0
+            video.set(cv2.CAP_PROP_POS_FRAMES, int(currentFrame))
+            time_elapsed = "{:02.0f}:{:02.0f}".format(*divmod(video.get(cv2.CAP_PROP_POS_MSEC) // 1000, 60))
+            WINDOW['-TIME_ELAPSED-'].update(time_elapsed)
+            WINDOW['-TIME-'].update(currentFrame)
+                                                                                   
+        elif (event == 'Right:39'):
+            paused = True
+            ret, frame = video.read()
+            currentFrame +=1
+            if currentFrame > totalFrames:
+                currentFrame = totalFrames
+            video.set(cv2.CAP_PROP_POS_FRAMES, int(currentFrame))
+            time_elapsed = "{:02.0f}:{:02.0f}".format(*divmod(video.get(cv2.CAP_PROP_POS_MSEC) // 1000, 60))
+            WINDOW['-TIME_ELAPSED-'].update(time_elapsed)
+            WINDOW['-TIME-'].update(currentFrame)
+ 
 
         #Drawing frame on graph
         if currentFrame >= totalFrames:

@@ -13,6 +13,7 @@ class mediaPlayer():
         self.paused = True
         self.rewind = False
         self.fastForward = False
+        self.savedFrames = []
 
     def pause(self):
         self.paused = True
@@ -54,6 +55,8 @@ class mediaPlayer():
         self.updateSlider()
         self.updateTime()
 
+    def saveFrame(self, frame):
+        self.savedFrames.append(frame)
 
     def openFile(self):
         layout = [
@@ -161,10 +164,10 @@ class mediaPlayer():
                 break  
 
             #Play/pause button interaction 
-            elif event == '-PLAY-' or (event == ' ' and paused):#space key
+            elif event == '-PLAY-' or (event == ' ' and self.paused):#space key
                 self.play()
 
-            elif event == '-PAUSE-' or (event == ' ' and not paused): 
+            elif event == '-PAUSE-' or (event == ' ' and not self.paused): 
                 self.pause()
 
             elif event == '-MEASURE-':
@@ -173,7 +176,7 @@ class mediaPlayer():
 
             #move 1 frame either forwards or backwards using the arrow keys
             if (event == 'Left:37'):
-                self.pause()
+                self.paused = True
                 ret, frame = self.video.read()
                 self.updateCurrentFrameNumber(self.currentFrameNumber - 1)
                 if self.currentFrameNumber < 0:
@@ -183,7 +186,7 @@ class mediaPlayer():
                 self.updateTime()
                                                                                     
             elif (event == 'Right:39'):
-                self.pause()
+                self.paused = True
                 ret, frame = self.video.read()
                 self.updateCurrentFrameNumber(self.currentFrameNumber + 1)
                 if self.currentFrameNumber > self.totalFrames:

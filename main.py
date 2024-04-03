@@ -32,6 +32,6 @@ def calculate_sfi(npl, epl, ets, nts, eit, nit):
 
 # main function
 if __name__ == '__main__':
-    #player = mediaPlayer()
-    #player.showVideo()
+    player = mediaPlayer()
+    player.showVideo()
     print("Test SFI run: " + str(calculate_sfi(15,12,8,7,6,5)))

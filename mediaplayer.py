@@ -14,6 +14,8 @@ class mediaPlayer():
         self.rewind = False
         self.fastForward = False
         self.savedFrames = []
+        self.subtractedImages = False
+        self.noBackgroundFrames = []
 
     def pause(self):
         self.paused = True
@@ -56,7 +58,35 @@ class mediaPlayer():
         self.updateTime()
 
     def saveFrame(self, frame):
+        #[0] position should always be the first frame of the video for later subtraction
         self.savedFrames.append(frame)
+
+    def clearSavedFrames(self):
+        self.savedFrames = []
+        self.subtractedImages = False
+        self.noBackgroundFrames = []
+
+    def subtractBackground(self):
+        self.subtractedImages = True
+        tempList = []
+        backgroundFrame = None
+        i = 0
+        for frame in self.savedFrames:
+            if i == 0:
+                backgroundFrame = frame
+            else:
+               tempList.append(cv2.subtract(backgroundFrame, frame)) 
+            i += 1
+
+        self.noBackgroundFrames = tempList
+
+    def showSingleFrame(self, subtracted):
+        # TO show the output 
+        cv2.imshow('image', subtracted) 
+  
+        # To close the window 
+        cv2.waitKey(0) 
+        cv2.destroyAllWindows() 
 
     def openFile(self):
         layout = [
@@ -78,6 +108,80 @@ class mediaPlayer():
         self.window.close()
         return filename
     
+    def drawVideoToGraph(self, frame):
+        #Drawing frame on graphs
+        if self.currentFrameNumber >= self.totalFrames:
+            #Video end was reached so stay on last frame
+            self.video.set(cv2.CAP_PROP_POS_FRAMES, self.totalFrames - 1) 
+        imgbytes = cv2.imencode('.ppm', frame)[1].tobytes()
+        if self.a_id:
+            self.graph_elem.delete_figure(self.a_id)  # delete previous image
+        self.a_id = self.graph_elem.draw_image(data=imgbytes, location=(0, 0))  # draw new image
+        self.graph_elem.send_figure_to_back(self.a_id)  # move image to the "bottom" of all other drawings
+
+    def drawFrameToMeasure(self, frame):
+        #Drawing frame on graph
+        imgbytes = cv2.imencode('.ppm', frame)[1].tobytes()
+        if self.measure_a_id:
+            self.measure_graph_elem.delete_figure(self.measure_a_id)  # delete previous image
+        self.measure_a_id = self.measure_graph_elem.draw_image(data=imgbytes, location=(0, 0))  # draw new image
+        self.measure_graph_elem.send_figure_to_back(self.measure_a_id)
+
+    def openMeasureWindow(self, frameList):
+        framesToMeasure = frameList
+        sg.theme('DarkTeal6')
+        self.layout = [[sg.Button('Exit Measure Mode', key='-CLOSE-')],
+                [sg.Graph((self.video.get(cv2.CAP_PROP_FRAME_WIDTH), self.video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (0, self.video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (self.video.get(cv2.CAP_PROP_FRAME_WIDTH), 0), key='-GRAPH-', enable_events=True, drag_submits=True)],
+                [sg.Button(key='-BACK-', image_data=self.rewindImage), sg.Button(key='-FORWARD-', image_data=self.forwardImage)],
+                [sg.Button('Delete Frame', key='-DELETEFRAME-')],
+                ]
+        self.measureWindow = sg.Window('SFI Measure Mode', self.layout, resizable=True, element_justification='c', return_keyboard_events=True)
+        self.measure_graph_elem = self.measureWindow['-GRAPH-']
+        self.measure_a_id = None
+
+        self.measureFramesTotal = len(framesToMeasure)
+        self.currentMeasureFrame = 0
+        event, values = self.measureWindow.read(timeout=0) 
+        self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame])
+
+        while True:
+            try:
+                event, values = self.measureWindow.read(timeout=0) 
+
+                if event in ('Exit', None) or event == '-CLOSE-':
+                    break
+
+                elif event == '-BACK-':
+                    if self.currentMeasureFrame > 0:
+                        self.currentMeasureFrame -= 1
+                    print(self.currentMeasureFrame)
+                    self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame])
+
+                elif event == '-FORWARD-':
+                    if self.currentMeasureFrame < self.measureFramesTotal - 1:
+                        self.currentMeasureFrame += 1
+                    print(self.currentMeasureFrame)
+                    self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame])
+
+                elif event == '-DELETEFRAME-':
+                    if len(framesToMeasure) != 0:
+                        del framesToMeasure[self.currentMeasureFrame]
+                        self.measureFramesTotal -= 1
+                        if self.currentMeasureFrame != 0:
+                            self.currentMeasureFrame -= 1
+                    if len(framesToMeasure) == 0:
+                         break
+                    else:
+                        self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame])
+
+                #draw on graph TODO
+                if event == '-GRAPH-':
+                    self.measure_graph_elem.draw_circle(values['-GRAPH-'], 5, fill_color='red', line_color='red')
+            except:
+                print(sg.popup_error("Error"))
+        self.measureWindow.close()
+
+
     def showVideo(self):
         # select video to show
         chosenVideoPath = self.openFile()  
@@ -100,115 +204,127 @@ class mediaPlayer():
                 [sg.Text('00:00', key='-TIME_ELAPSED-'), sg.Slider(range=(0, self.totalFrames - 1), enable_events=True, resolution=0.0001, disable_number_display=True,
                         background_color='#83D8F5', orientation='h', key='-TIME-', size=(self.video.get(cv2.CAP_PROP_FRAME_WIDTH) * 0.073, 20))],
                 [sg.Button(key='-REWIND-', image_data=self.rewindImage), sg.Button(image_data=self.playImage, key= '-PLAY-'), sg.Button(image_data=self.pauseImage, key='-PAUSE-'),sg.Button(key='-FASTFORWARD-', image_data=self.forwardImage),  sg.Button('Restart')],
-                [sg.Button('Measure Mode', key='-MEASURE-') ]]
+                [sg.Button('Measure Mode', key='-MEASURE-'),  sg.Button('Save Frame', key='-SAVEFRAME-'), sg.Button('Clear Saved Frames', key='-CLEARSAVEDFRAMES-'), sg.Button('Display Single Frame', key='-DISPLAYFRAME-'), sg.Button('Subtract', key='-SUBTRACT-')]]
         self.window = sg.Window('SFI Calculator', self.layout, resizable=True, element_justification='c', return_keyboard_events=True)
-        graph_elem = self.window['-GRAPH-']
-        a_id = None
+        self.graph_elem = self.window['-GRAPH-']
+        self.a_id = None
 
         self.pause()
-        ret, frame = self.video.read() #get frst frame of video
+        ret, frame = self.video.read() #get first frame of video
         self.updateCurrentFrameNumber(1)
 
         # show video
         while True:
-            event, values = self.window.read(timeout=0)
+            try:
+                event, values = self.window.read(timeout=0)
 
-            if not self.paused and not self.rewind and not self.fastForward:
-                ret, frame = self.video.read()
-                self.updateCurrentFrameNumber(self.currentFrameNumber + 1)
-                self.updateTime()
-                
-            elif self.rewind:
-                ret, frame = self.video.read()
-                self.updateCurrentFrameNumber(self.currentFrameNumber - fps)
-                if self.currentFrameNumber < 0:
-                    self.currentFrameNumber = 0
-                self.video.set(cv2.CAP_PROP_POS_FRAMES, int(self.currentFrameNumber))
-                self.updateTime()
-                self.updateSlider()
+                if not self.paused and not self.rewind and not self.fastForward:
+                    ret, frame = self.video.read()
+                    self.updateCurrentFrameNumber(self.currentFrameNumber + 1)
+                    self.updateTime()
+                    
+                elif self.rewind:
+                    ret, frame = self.video.read()
+                    self.updateCurrentFrameNumber(self.currentFrameNumber - fps)
+                    if self.currentFrameNumber < 0:
+                        self.currentFrameNumber = 0
+                    self.video.set(cv2.CAP_PROP_POS_FRAMES, int(self.currentFrameNumber))
+                    self.updateTime()
+                    self.updateSlider()
 
-            elif self.fastForward:
-                ret, frame = self.video.read()
-                self.updateCurrentFrameNumber(self.currentFrameNumber + fps)
-                if self.currentFrameNumber > self.totalFrames:
-                    self.currentFrameNumber = self.totalFrames
-                self.video.set(cv2.CAP_PROP_POS_FRAMES, int(self.currentFrameNumber))
-                self.updateTime()
-                self.updateSlider()
+                elif self.fastForward:
+                    ret, frame = self.video.read()
+                    self.updateCurrentFrameNumber(self.currentFrameNumber + fps)
+                    if self.currentFrameNumber > self.totalFrames:
+                        self.currentFrameNumber = self.totalFrames
+                    self.video.set(cv2.CAP_PROP_POS_FRAMES, int(self.currentFrameNumber))
+                    self.updateTime()
+                    self.updateSlider()
 
-            if event in ('Exit', None):
-                break
-        
-            elif event == '-TIME-':
-                self.video.set(cv2.CAP_PROP_POS_FRAMES, int(values['-TIME-'] - 1))
-                self.updateCurrentFrameNumber(int(values['-TIME-'] - 1))
-                self.updateSlider()
-                self.updateTime()
-                self.unpause()
-                        
-            elif event == 'Restart':
-                self.restartVideo()
+                if event in ('Exit', None):
+                    break
             
-            elif event == '-REWIND-':
-                self.rewindVideo()
+                elif event == '-TIME-':
+                    self.video.set(cv2.CAP_PROP_POS_FRAMES, int(values['-TIME-'] - 1))
+                    self.updateCurrentFrameNumber(int(values['-TIME-'] - 1))
+                    self.updateSlider()
+                    self.updateTime()
+                    self.unpause()
+                            
+                elif event == 'Restart':
+                    self.restartVideo()
+                
+                elif event == '-REWIND-':
+                    self.rewindVideo()
 
-            elif event == '-FASTFORWARD-':
-                self.fastForwardVideo()
+                elif event == '-FASTFORWARD-':
+                    self.fastForwardVideo()
 
-            #Open new video
-            elif event == 'Open video':
-                self.window.close()
-                self.video.release()
-                cv2.destroyAllWindows()
-                self.showVideo()
-                break  
+                #Open new video
+                elif event == 'Open video':
+                    self.window.close()
+                    self.video.release()
+                    cv2.destroyAllWindows()
+                    self.showVideo()
+                    break  
 
-            #Play/pause button interaction 
-            elif event == '-PLAY-' or (event == ' ' and self.paused):#space key
-                self.play()
+                #Play/pause button interaction 
+                elif event == '-PLAY-' or (event == ' ' and self.paused):#space key
+                    self.play()
 
-            elif event == '-PAUSE-' or (event == ' ' and not self.paused): 
-                self.pause()
+                elif event == '-PAUSE-' or (event == ' ' and not self.paused): 
+                    self.pause()
 
-            elif event == '-MEASURE-':
-                #measureLine(aspectBeingMeasured='nts')
-                print('TODO')                
+                elif event == '-MEASURE-':
+                    if len(self.noBackgroundFrames) > 0:
+                        self.openMeasureWindow(self.noBackgroundFrames)     
+                    elif len(self.savedFrames) > 0:
+                        self.openMeasureWindow(self.savedFrames)
+                    else:
+                        print(sg.popup_auto_close('Frames must be saved before measuring can be done.'))
 
-            #move 1 frame either forwards or backwards using the arrow keys
-            if (event == 'Left:37'):
-                self.paused = True
-                ret, frame = self.video.read()
-                self.updateCurrentFrameNumber(self.currentFrameNumber - 1)
-                if self.currentFrameNumber < 0:
-                    self.currentFrameNumber = 0
-                self.video.set(cv2.CAP_PROP_POS_FRAMES, int(self.currentFrameNumber))
-                self.updateSlider()
-                self.updateTime()
-                                                                                    
-            elif (event == 'Right:39'):
-                self.paused = True
-                ret, frame = self.video.read()
-                self.updateCurrentFrameNumber(self.currentFrameNumber + 1)
-                if self.currentFrameNumber > self.totalFrames:
-                    self.currentFrameNumber = self.totalFrames
-                self.video.set(cv2.CAP_PROP_POS_FRAMES, int(self.currentFrameNumber))
-                self.updateSlider()
-                self.updateTime()
-    
+                #move 1 frame either forwards or backwards using the arrow keys
+                if (event == 'Left:37'):
+                    self.paused = True
+                    ret, frame = self.video.read()
+                    self.updateCurrentFrameNumber(self.currentFrameNumber - 1)
+                    if self.currentFrameNumber < 0:
+                        self.currentFrameNumber = 0
+                    self.video.set(cv2.CAP_PROP_POS_FRAMES, int(self.currentFrameNumber))
+                    self.updateSlider()
+                    self.updateTime()
+                                                                                        
+                elif (event == 'Right:39'):
+                    self.paused = True
+                    ret, frame = self.video.read()
+                    self.updateCurrentFrameNumber(self.currentFrameNumber + 1)
+                    if self.currentFrameNumber > self.totalFrames:
+                        self.currentFrameNumber = self.totalFrames
+                    self.video.set(cv2.CAP_PROP_POS_FRAMES, int(self.currentFrameNumber))
+                    self.updateSlider()
+                    self.updateTime()
 
-            #Drawing frame on graph
-            if self.currentFrameNumber >= self.totalFrames:
-                #Video end was reached so stay on last frame
-                self.video.set(cv2.CAP_PROP_POS_FRAMES, self.totalFrames - 1) 
-            imgbytes = cv2.imencode('.ppm', frame)[1].tobytes()
-            if a_id:
-                graph_elem.delete_figure(a_id)  # delete previous image
-            a_id = graph_elem.draw_image(data=imgbytes, location=(0, 0))  # draw new image
-            graph_elem.send_figure_to_back(a_id)  # move image to the "bottom" of all other drawings
+                elif (event == '-DISPLAYFRAME-'):
+                    if self.subtractedImages:
+                        for frame in self.noBackgroundFrames:
+                            self.showSingleFrame(frame)
+                    else:
+                        for frame in self.savedFrames:
+                            self.showSingleFrame(frame)
 
-            #draw on graph TODO
-            if event == '-GRAPH-':
-                graph_elem.draw_circle(values['-GRAPH-'], 5, fill_color='red', line_color='red')
+                elif (event == '-SAVEFRAME-'):
+                    self.saveFrame(frame)
+                
+                elif (event == '-CLEARSAVEDFRAMES-'):
+                    self.clearSavedFrames()
+
+                elif (event == '-SUBTRACT-'):
+                    self.subtractBackground()
+
+                self.drawVideoToGraph(frame)
+            except:
+                print(sg.popup_error("Error"))
+                break
 
         self.window.close()
 

@@ -139,8 +139,9 @@ class mediaPlayer():
     def openMeasureWindow(self, frameList):
         framesToMeasure = frameList
         sg.theme('DarkTeal6')
-        self.layout = [[sg.Button('Exit Measure Mode', key='-CLOSE-')],
-                [sg.Graph((self.video.get(cv2.CAP_PROP_FRAME_WIDTH), self.video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (0, self.video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (self.video.get(cv2.CAP_PROP_FRAME_WIDTH), 0), key='-GRAPH-', enable_events=True, drag_submits=True)],
+        self.layout = [[sg.Button('Exit Measure Mode', key='-CLOSE-')], 
+                       [sg.Text(key='info')],
+                [sg.Graph((self.video.get(cv2.CAP_PROP_FRAME_WIDTH), self.video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (0, self.video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (self.video.get(cv2.CAP_PROP_FRAME_WIDTH), 0), key='-GRAPH-', enable_events=True, drag_submits=True, change_submits=True)],
                 [sg.Button(key='-BACK-', image_data=self.rewindImage), sg.Button(key='-FORWARD-', image_data=self.forwardImage)],
                 [sg.Radio('None', 'Radio', True, size=(10, 1))],
                 [sg.Radio('threshold', 'Radio', size=(10, 1), key='-THRESH-'),
@@ -155,6 +156,9 @@ class mediaPlayer():
 
         self.measureFramesTotal = len(framesToMeasure)
         self.currentMeasureFrame = 0
+        start_point = end_point = prior_rect = None
+        dragging = False
+
         event, values = self.measureWindow.read(timeout=0)
         self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame])
 
@@ -163,18 +167,17 @@ class mediaPlayer():
                 event, values = self.measureWindow.read(timeout=0) 
 
                 if event in ('Exit', None) or event == '-CLOSE-':
+                    self.measureWindow.close()
                     break
 
                 elif event == '-BACK-' or event == 'Left:37':
                     if self.currentMeasureFrame > 0:
                         self.currentMeasureFrame -= 1
-                    print(self.currentMeasureFrame)
                     self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame])
 
                 elif event == '-FORWARD-' or event == 'Right:39':
                     if self.currentMeasureFrame < self.measureFramesTotal - 1:
                         self.currentMeasureFrame += 1
-                    print(self.currentMeasureFrame)
                     self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame])
 
                 elif event == '-DELETEFRAME-':
@@ -198,9 +201,27 @@ class mediaPlayer():
 
                 #draw on graph TODO
                 if event == '-GRAPH-':
-                    self.measure_graph_elem.draw_circle(values['-GRAPH-'], 5, fill_color='red', line_color='red')
+                    #self.measure_graph_elem.draw_circle(values['-GRAPH-'], 5, fill_color='red', line_color='red')
+                    x, y = values["-GRAPH-"]
+                    if not dragging:
+                        start_point = (x, y)
+                        dragging = True
+                    else:
+                        end_point = (x, y)
+                    if prior_rect:
+                        self.measure_graph_elem.delete_figure(prior_rect)
+                    if None not in (start_point, end_point):
+                        prior_rect = self.measure_graph_elem.draw_line(point_from=start_point, point_to=end_point, color='red', width=2)
+                elif event.endswith('+UP'):  # The drawing has ended because mouse up
+                    info = self.measureWindow["info"]
+                    info.update(value=f"Coordinates from {start_point} to {end_point}")
+                    start_point, end_point = None, None  # enable grabbing a new rect
+                    dragging = False
+            
+            
             except Exception as err:
                 print(sg.popup_error(f"Unexpected {err=}, {type(err)=}"))
+
         self.measureWindow.close()
 
 
@@ -284,6 +305,7 @@ class mediaPlayer():
 
                 #Open new video
                 elif event == 'Open video':
+                    self.clearSavedFrames()
                     self.window.close()
                     self.video.release()
                     cv2.destroyAllWindows()

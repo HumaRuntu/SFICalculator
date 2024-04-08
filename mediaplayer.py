@@ -119,13 +119,22 @@ class mediaPlayer():
         self.a_id = self.graph_elem.draw_image(data=imgbytes, location=(0, 0))  # draw new image
         self.graph_elem.send_figure_to_back(self.a_id)  # move image to the "bottom" of all other drawings
 
-    def drawFrameToMeasure(self, frame):
-        #Drawing frame on graph
-        imgbytes = cv2.imencode('.ppm', frame)[1].tobytes()
+    def drawFrameToMeasure(self, frame, setting=None):
+        #convert frame to gray scale
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        #apply changes to frame
+        if setting == '-THRESH-':
+            frame = cv2.threshold(frame, self.threshSlider, 255, cv2.THRESH_BINARY)[1]
+        elif setting == '-CANNY-':
+            frame = cv2.Canny(frame, self.cannySliderA, self.cannySliderB)
+
+        imgbytes = cv2.imencode('.png', frame)[1].tobytes()
         if self.measure_a_id:
             self.measure_graph_elem.delete_figure(self.measure_a_id)  # delete previous image
         self.measure_a_id = self.measure_graph_elem.draw_image(data=imgbytes, location=(0, 0))  # draw new image
         self.measure_graph_elem.send_figure_to_back(self.measure_a_id)
+        
 
     def openMeasureWindow(self, frameList):
         framesToMeasure = frameList
@@ -133,15 +142,20 @@ class mediaPlayer():
         self.layout = [[sg.Button('Exit Measure Mode', key='-CLOSE-')],
                 [sg.Graph((self.video.get(cv2.CAP_PROP_FRAME_WIDTH), self.video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (0, self.video.get(cv2.CAP_PROP_FRAME_HEIGHT)), (self.video.get(cv2.CAP_PROP_FRAME_WIDTH), 0), key='-GRAPH-', enable_events=True, drag_submits=True)],
                 [sg.Button(key='-BACK-', image_data=self.rewindImage), sg.Button(key='-FORWARD-', image_data=self.forwardImage)],
-                [sg.Button('Delete Frame', key='-DELETEFRAME-')],
-                ]
+                [sg.Radio('None', 'Radio', True, size=(10, 1))],
+                [sg.Radio('threshold', 'Radio', size=(10, 1), key='-THRESH-'),
+                sg.Slider((0, 255), 128, 1, orientation='h', size=(40, 15), key='-THRESH SLIDER-')],
+                [sg.Radio('canny', 'Radio', size=(10, 1), key='-CANNY-'),
+                sg.Slider((0, 255), 128, 1, orientation='h', size=(20, 15), key='-CANNY SLIDER A-'),
+                sg.Slider((0, 255), 128, 1, orientation='h', size=(20, 15), key='-CANNY SLIDER B-')]]
+
         self.measureWindow = sg.Window('SFI Measure Mode', self.layout, resizable=True, element_justification='c', return_keyboard_events=True)
         self.measure_graph_elem = self.measureWindow['-GRAPH-']
         self.measure_a_id = None
 
         self.measureFramesTotal = len(framesToMeasure)
         self.currentMeasureFrame = 0
-        event, values = self.measureWindow.read(timeout=0) 
+        event, values = self.measureWindow.read(timeout=0)
         self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame])
 
         while True:
@@ -151,13 +165,13 @@ class mediaPlayer():
                 if event in ('Exit', None) or event == '-CLOSE-':
                     break
 
-                elif event == '-BACK-':
+                elif event == '-BACK-' or event == 'Left:37':
                     if self.currentMeasureFrame > 0:
                         self.currentMeasureFrame -= 1
                     print(self.currentMeasureFrame)
                     self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame])
 
-                elif event == '-FORWARD-':
+                elif event == '-FORWARD-' or event == 'Right:39':
                     if self.currentMeasureFrame < self.measureFramesTotal - 1:
                         self.currentMeasureFrame += 1
                     print(self.currentMeasureFrame)
@@ -174,11 +188,19 @@ class mediaPlayer():
                     else:
                         self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame])
 
+                elif values['-THRESH-']:
+                    self.threshSlider = values['-THRESH SLIDER-']
+                    self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame], setting='-THRESH-')
+                elif values['-CANNY-']:
+                    self.cannySliderA = values['-CANNY SLIDER A-']
+                    self.cannySliderB = values['-CANNY SLIDER B-']
+                    self.drawFrameToMeasure(frame=framesToMeasure[self.currentMeasureFrame], setting='-CANNY-')                
+
                 #draw on graph TODO
                 if event == '-GRAPH-':
                     self.measure_graph_elem.draw_circle(values['-GRAPH-'], 5, fill_color='red', line_color='red')
-            except:
-                print(sg.popup_error("Error"))
+            except Exception as err:
+                print(sg.popup_error(f"Unexpected {err=}, {type(err)=}"))
         self.measureWindow.close()
 
 
@@ -276,6 +298,7 @@ class mediaPlayer():
                     self.pause()
 
                 elif event == '-MEASURE-':
+                    self.pause()
                     if len(self.noBackgroundFrames) > 0:
                         self.openMeasureWindow(self.noBackgroundFrames)     
                     elif len(self.savedFrames) > 0:
@@ -322,8 +345,8 @@ class mediaPlayer():
                     self.subtractBackground()
 
                 self.drawVideoToGraph(frame)
-            except:
-                print(sg.popup_error("Error"))
+            except Exception as err:
+                print(sg.popup_error(f"Unexpected {err=}, {type(err)=}"))
                 break
 
         self.window.close()
